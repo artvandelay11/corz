@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CORZ — Interactive Valuation Model</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+  :root {
+    --bg:#0d0f12; --bg2:#13161b; --bg3:#1a1e25;
+    --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.13);
+    --text:#e8eaf0; --muted:#7a8194; --faint:#3d4252;
+    --blue:#4d8ef5; --blue-dim:#1f3a6e;
+    --green:#3ecf8e; --green-dim:#0e3324;
+    --red:#f25f5c; --red-dim:#3d1615;
+    --amber:#f5a623;
+    --radius:10px;
+    --mono:'DM Mono',monospace; --sans:'DM Sans',sans-serif;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.5;}
+
+  header{border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;background:var(--bg2);position:sticky;top:0;z-index:100;}
+  .ticker{font-family:var(--mono);font-size:19px;font-weight:500;letter-spacing:.04em;}
+  .ticker span{color:var(--blue);}
+  .header-meta{font-size:12px;color:var(--muted);font-family:var(--mono);}
+  .disclaimer{font-size:11px;color:var(--faint);max-width:400px;text-align:right;line-height:1.4;}
+
+  main{padding:22px 32px 48px;max-width:1280px;margin:0 auto;}
+
+  .scenario-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px;}
+  .slabel-sm{font-size:11px;color:var(--muted);font-family:var(--mono);letter-spacing:.06em;}
+  .sbtn{font-family:var(--mono);font-size:12px;padding:6px 16px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;letter-spacing:.05em;transition:all .15s;}
+  .sbtn:hover{border-color:var(--blue);color:var(--blue);}
+  .sbtn.active{background:var(--blue-dim);border-color:var(--blue);color:var(--blue);}
+
+  .price-hero{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px 26px;margin-bottom:14px;}
+  .price-row{display:flex;align-items:stretch;flex-wrap:wrap;gap:0;}
+  .pcol{flex:1;min-width:170px;padding:0 26px;}
+  .pcol:first-child{padding-left:0;border-right:1px solid var(--border);}
+  .pcol:last-child{padding-right:0;}
+  .pcol-label{font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px;}
+  .pcol-price{font-family:var(--mono);font-size:42px;font-weight:500;line-height:1;margin-bottom:4px;transition:color .2s;}
+  .pcol-sub{font-size:12px;color:var(--muted);}
+  .upside-pill{display:inline-block;font-family:var(--mono);font-size:12px;font-weight:500;padding:3px 10px;border-radius:20px;margin-top:6px;transition:all .2s;}
+  .pill-up{background:var(--green-dim);color:var(--green);border:1px solid rgba(62,207,142,.2);}
+  .pill-dn{background:var(--red-dim);color:var(--red);border:1px solid rgba(242,95,92,.2);}
+  .gauge-section{margin-top:16px;padding-top:16px;border-top:1px solid var(--border);}
+  .gauge-meta{display:flex;align-items:flex-start;gap:28px;flex-wrap:wrap;}
+  .gauge-block{flex:1;min-width:200px;}
+  .gauge-title{font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px;}
+  .gauge-track{position:relative;height:8px;background:var(--bg3);border-radius:4px;overflow:visible;margin-bottom:5px;}
+  .gauge-fill{height:8px;border-radius:4px;background:linear-gradient(to right,var(--blue-dim),var(--blue));width:100%;}
+  .gmark{position:absolute;top:-6px;width:3px;height:20px;border-radius:2px;transition:left .3s;}
+  .gauge-labels{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--faint);}
+  .stat-item{}
+  .stat-val{font-family:var(--mono);font-size:17px;font-weight:500;color:var(--text);}
+  .stat-lbl{font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;margin-top:2px;}
+
+  .metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-bottom:14px;}
+  .metric-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;}
+  .mc-label{font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;}
+  .mc-value{font-family:var(--mono);font-size:19px;font-weight:500;color:var(--text);}
+  .mc-sub{font-size:11px;color:var(--faint);margin-top:2px;}
+
+  .tabs{display:flex;gap:4px;margin-bottom:13px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .tab-btn{font-family:var(--mono);font-size:12px;padding:7px 15px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;letter-spacing:.05em;transition:all .15s;}
+  .tab-btn:hover{color:var(--text);}
+  .tab-btn.active{color:var(--blue);border-bottom-color:var(--blue);}
+  .panel{display:none;}
+  .panel.visible{display:block;}
+
+  .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:17px 19px;}
+  .card-title{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:13px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+  .srow{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .sname{font-size:12px;color:var(--muted);min-width:155px;line-height:1.3;flex-shrink:0;}
+  .sval{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--blue);min-width:72px;text-align:right;}
+
+  input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:4px;background:var(--bg3);border-radius:2px;outline:none;cursor:pointer;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;border:2px solid var(--bg);transition:transform .1s;}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2);}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;border:2px solid var(--bg);}
+
+  hr.div{border:none;border-top:1px solid var(--border);margin:13px 0;}
+
+  .fact-row{display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:5px 0;font-size:12px;}
+  .fact-row:last-child{border-bottom:none;}
+  .fact-label{color:var(--muted);}
+  .fact-val{font-family:var(--mono);color:var(--text);}
+  .fact-val.green{color:var(--green);}
+  .fact-val.amber{color:var(--amber);}
+  .fact-val.red{color:var(--red);}
+
+  .sotp-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .sotp-table th{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;padding:6px 0;border-bottom:1px solid var(--border2);text-align:left;font-weight:500;}
+  .sotp-table th:last-child{text-align:right;}
+  .sotp-table td{padding:6px 0;border-bottom:1px solid var(--border);color:var(--muted);}
+  .sotp-table td:last-child{text-align:right;font-family:var(--mono);}
+  .sotp-table tr.pos td{color:var(--green);}
+  .sotp-table tr.neg td{color:var(--red);}
+  .sotp-table tr.total td{border-top:1px solid var(--border2);border-bottom:none;color:var(--text);font-weight:500;font-size:13px;padding-top:9px;font-family:var(--mono);}
+  .sotp-table tr.share td{border-bottom:none;padding-top:4px;}
+  .sotp-table tr.implied td{color:var(--blue);font-family:var(--mono);font-size:15px;font-weight:500;}
+  .sotp-table tr.market td{color:var(--muted);font-family:var(--mono);}
+
+  .bwrap{margin:5px 0;}
+  .blbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:3px;}
+  .blbl span:last-child{font-family:var(--mono);}
+  .btrack{background:var(--bg3);border-radius:2px;height:7px;overflow:hidden;}
+  .bfill{height:7px;border-radius:2px;transition:width .3s;}
+
+  .chart-wrap{position:relative;width:100%;}
+  .clegend{display:flex;gap:12px;margin-top:7px;flex-wrap:wrap;}
+  .clegend-item{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);}
+  .clegend-swatch{width:9px;height:9px;border-radius:2px;flex-shrink:0;}
+
+  .note-box{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 13px;font-size:11px;color:var(--muted);line-height:1.7;margin-top:10px;}
+  .note-box strong{color:var(--amber);font-weight:500;}
+
+  /* ── Section color coding ── */
+  .section-hero   { border-color: rgba(77,142,245,.3) !important; }
+  .section-thesis { border-color: rgba(245,166,35,.35) !important; background: #141209 !important; }
+  .section-model  { border-color: rgba(255,255,255,.06) !important; }
+
+  /* ── Thesis-specific ── */
+  .thesis-decision-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin-bottom:20px; }
+  .decision-card { border-radius:10px; padding:20px 22px; }
+  .decision-card.hold-now  { background:#141b0d; border:1.5px solid rgba(62,207,142,.25); }
+  .decision-card.no-deal   { background:#170d0d; border:1.5px solid rgba(242,95,92,.3); }
+  .decision-card.new-deal  { background:#0d1a0f; border:1.5px solid rgba(62,207,142,.4); }
+  .decision-icon { font-size:28px; margin-bottom:10px; }
+  .decision-headline { font-size:17px; font-weight:600; color:var(--text); margin-bottom:6px; line-height:1.3; }
+  .decision-sub { font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; margin-bottom:14px; }
+  .decision-body { font-size:14px; color:var(--muted); line-height:1.75; }
+  .decision-body strong { color:var(--text); font-weight:600; }
+  .decision-target { display:inline-block; font-family:var(--mono); font-size:20px; font-weight:500; margin-top:12px; padding:6px 14px; border-radius:6px; }
+
+  .conviction-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; margin-bottom:20px; }
+  .conviction-card { background:var(--bg3); border-radius:8px; padding:16px 18px; border-top:3px solid; }
+  .conviction-card.c-green { border-top-color:var(--green); }
+  .conviction-card.c-amber { border-top-color:var(--amber); }
+  .conviction-card.c-grey  { border-top-color:var(--faint); }
+  .conviction-badge { font-family:var(--mono); font-size:10px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; margin-bottom:6px; }
+  .conviction-title { font-size:15px; font-weight:600; color:var(--text); margin-bottom:10px; }
+  .conviction-li { font-size:13px; color:var(--muted); line-height:1.65; padding-left:14px; position:relative; margin-bottom:8px; }
+  .conviction-li:last-child { margin-bottom:0; }
+  .conviction-dot { position:absolute; left:0; font-size:16px; line-height:1.2; }
+
+  .keywatch { margin-top:0; padding:20px 24px; border-radius:10px; background:#F5720A; border:none; }
+  .keywatch-label { font-family:var(--mono); font-size:11px; color:#000; letter-spacing:.1em; text-transform:uppercase; font-weight:700; margin-bottom:10px; opacity:.75; }
+  .keywatch-body { font-size:15px; color:#000; line-height:1.75; font-weight:500; }
+  .keywatch-body strong { color:#000; font-weight:700; }
+
+  /* ── Page navigation ── */
+  .page-nav { display:flex; gap:0; background:var(--bg2); border-bottom:1px solid var(--border); padding:0 32px; }
+  .page-nav-btn { font-family:var(--mono); font-size:12px; letter-spacing:.07em; padding:13px 22px; border:none; background:transparent; color:var(--muted); cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-1px; transition:all .15s; }
+  .page-nav-btn:hover { color:var(--text); }
+  .page-nav-btn.active { color:var(--amber); border-bottom-color:var(--amber); }
+  .page-view { display:none; }
+  .page-view.visible { display:block; }
+
+  footer{margin-top:48px;padding:18px 32px;border-top:1px solid var(--border);text-align:center;font-size:11px;color:var(--faint);line-height:1.7;}
+
+  @media(max-width:700px){
+    main{padding:14px;}
+    header{padding:12px 14px;}
+    .page-nav{padding:0 14px;}
+    .grid2{grid-template-columns:1fr;}
+    .pcol:first-child{border-right:none;border-bottom:1px solid var(--border);padding:0 0 14px;margin-bottom:14px;}
+    .pcol{padding:0;}
+    .disclaimer{display:none;}
+    .sname{min-width:115px;font-size:11px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div style="display:flex;align-items:baseline;gap:13px;flex-wrap:wrap;">
+    <span class="ticker"><span>CORZ</span> / Core Scientific</span>
+    <span class="header-meta">NASDAQ &nbsp;·&nbsp; Digital Infrastructure &nbsp;·&nbsp; Sum-of-the-Parts Model</span>
+    <span style="font-family:var(--mono);font-size:10px;font-weight:500;padding:3px 9px;border-radius:4px;background:var(--green-dim);color:var(--green);border:1px solid rgba(62,207,142,.25);letter-spacing:.06em;">&#10003; $3.3B NOTES PRICED · 7.750% · MAY 6 CLOSE</span>
+    <span style="font-family:var(--mono);font-size:10px;font-weight:500;padding:3px 9px;border-radius:4px;background:var(--blue-dim);color:var(--blue);border:1px solid rgba(77,142,245,.25);letter-spacing:.06em;">&#9650; PECOS 1.5 GW EXPANSION · APR 27</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+      <span id="live-price-display" style="font-family:var(--mono);font-size:13px;color:var(--text);">
+        <span id="hdr-price-label">Last price</span> <span id="hdr-price" style="color:var(--green);">$19.88</span>
+        &nbsp;·&nbsp; 52w <span style="color:var(--muted);">$6.36–$23.63</span>
+        &nbsp;·&nbsp; Analyst avg. <span style="color:var(--amber);">$26.91</span>
+        &nbsp;·&nbsp; <span id="price-status" style="font-size:11px;color:var(--muted);">fetching live price...</span>
+        <button id="refresh-btn" onclick="fetchPrice()" style="font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--muted);cursor:pointer;margin-left:4px;letter-spacing:.04em;">↻</button>
+      </span>
+    <span class="disclaimer">For informational purposes only. Not financial advice. Model assumptions are illustrative.</span>
+  </div>
+</header>
+
+<!-- Page navigation -->
+<nav class="page-nav">
+  <button class="page-nav-btn active" id="nav-thesis" onclick="showPage('thesis')">INVESTMENT THESIS</button>
+  <button class="page-nav-btn" id="nav-model" onclick="showPage('model')">VALUATION MODEL</button>
+</nav>
+
+<main>
+
+  <!-- ═══════════════════════════════════════════ PAGE: THESIS ═══ -->
+  <div id="page-thesis" class="page-view visible">
+
+  <!-- Scenario selector + Hero -->
+  <div class="price-hero section-hero" style="margin-bottom:14px;">
+
+    <!-- Scenario buttons sit inside the hero on the thesis page -->
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px;">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;">// select scenario</span>
+      <div style="display:flex;gap:6px;">
+        <button class="sbtn" id="btn-bear" onclick="loadScenario('bear')">BEAR</button>
+        <button class="sbtn active" id="btn-base" onclick="loadScenario('base')">BASE</button>
+        <button class="sbtn" id="btn-bull" onclick="loadScenario('bull')">BULL</button>
+      </div>
+    </div>
+    <div class="price-row">
+      <div class="pcol">
+        <div class="pcol-label">// implied fair value</div>
+        <div class="pcol-price" id="implied-price" style="color:var(--blue);">—</div>
+        <div class="pcol-sub" id="implied-cap">—</div>
+        <span class="upside-pill" id="upside-pill">—</span>
+      </div>
+      <div class="pcol">
+        <div class="pcol-label">// current market price</div>
+        <div class="pcol-price" id="hero-price" style="color:var(--text);">$19.88</div>
+        <div class="pcol-sub">
+          <span id="hero-mktcap">$6.27B market cap</span> · 315.3M basic shares
+        </div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:11px;color:var(--muted);font-family:var(--mono);">Override:</span>
+          <input type="number" id="price-override" step="0.01" min="0" placeholder="e.g. 19.88"
+            style="font-family:var(--mono);font-size:12px;width:90px;padding:3px 7px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);outline:none;"
+            oninput="overridePrice(this.value)">
+          <span style="font-size:11px;color:var(--faint);">type to override live price</span>
+        </div>
+        <div style="margin-top:6px;font-family:var(--mono);font-size:12px;color:var(--amber);">Analyst avg. 12-month target: $26.91</div>
+      </div>
+    </div>
+    <div class="gauge-section">
+      <div class="gauge-meta">
+        <div class="gauge-block" style="flex:2;">
+          <div class="gauge-title">// position in 52-week range</div>
+          <div class="gauge-track">
+            <div class="gauge-fill"></div>
+            <div class="gmark" id="gm-current" style="background:var(--text);"></div>
+            <div class="gmark" id="gm-implied" style="background:var(--blue);"></div>
+          </div>
+          <div class="gauge-labels"><span>$6.36 low</span><span id="g-implied-lbl" style="color:var(--blue);">—</span><span>$23.63 high</span></div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val">398.5M</div>
+          <div class="stat-lbl">diluted shares</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" id="stat-uplift" style="color:var(--green);">—</div>
+          <div class="stat-lbl">mkt-rate uplift</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" id="stat-ulpct">—</div>
+          <div class="stat-lbl">unleased % of value</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Investor Thesis -->
+  <div class="section-thesis" style="border:1px solid;border-radius:var(--radius);padding:24px 28px;margin-bottom:14px;">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:22px;">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:.12em;text-transform:uppercase;opacity:.7;">// investor thesis</span>
+        <span style="font-family:var(--mono);font-size:11px;font-weight:500;padding:4px 12px;border-radius:4px;background:rgba(245,166,35,.12);color:var(--amber);border:1px solid rgba(245,166,35,.3);letter-spacing:.06em;">HOLD · WATCH EARNINGS MAY 6</span>
+      </div>
+      <span style="font-size:11px;color:var(--faint);font-family:var(--mono);">Apr 27, 2026 · Personal view, not financial advice</span>
+    </div>
+
+    <!-- SECTION 1: Decision Framework — LEAD with this -->
+    <div style="font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;opacity:.8;">01 · WHAT TO DO — EARNINGS DECISION TREE</div>
+
+    <div class="thesis-decision-grid">
+
+      <!-- Card A: Right now -->
+      <div class="decision-card hold-now">
+        <div class="decision-icon">⏳</div>
+        <div class="decision-sub" style="color:var(--green);">NOW → MAY 6 EARNINGS</div>
+        <div class="decision-headline">Hold Through The Call</div>
+        <div class="decision-body">
+          Don't sell before earnings. The $3.3B notes close and Q1 earnings are both on <strong>May 6</strong> — a double catalyst in a single day. Q1 will show the CoreWeave billing ramp and updated MW counts. More importantly, it's the first logical venue for a new customer announcement.<br><br>
+          The stock has positive momentum from the notes pricing and the Pecos expansion. Let that play out.
+        </div>
+      </div>
+
+      <!-- Card B: No deal -->
+      <div class="decision-card no-deal">
+        <div class="decision-icon">✕</div>
+        <div class="decision-sub" style="color:var(--red);">SCENARIO A · NO NEW CUSTOMER</div>
+        <div class="decision-headline">Sell — CoreWeave Value Is Already Priced In</div>
+        <div class="decision-body">
+          Without a new customer, the unleased portfolio starts to look like an overhang. The CoreWeave ramp alone supports <strong>$18–20</strong>. That's roughly where you are now — meaning limited further upside without a catalyst.<br><br>
+          <strong>Stock above $20 on earnings day:</strong> Sell.<br>
+          <strong>Stock below $20:</strong> Hold and wait for recovery to $20, then exit.
+          <div class="decision-target" style="background:rgba(242,95,92,.12);color:var(--red);border:1px solid rgba(242,95,92,.2);">Exit target: $20</div>
+        </div>
+      </div>
+
+      <!-- Card C: New deal -->
+      <div class="decision-card new-deal">
+        <div class="decision-icon">✓</div>
+        <div class="decision-sub" style="color:var(--green);">SCENARIO B · NEW CUSTOMER SIGNED</div>
+        <div class="decision-headline">Hold — Wait for the Full Re-Rating</div>
+        <div class="decision-body">
+          A signed lease converts the unleased portfolio from speculative to contracted value, collapsing the 65% execution discount in our model. The stock should re-rate sharply toward our bull case.<br><br>
+          Hold through the re-rating. Above <strong>$27</strong> the risk/reward deteriorates — 96.7M CORZW warrants create real dilution overhang at those levels.
+          <div class="decision-target" style="background:rgba(62,207,142,.1);color:var(--green);border:1px solid rgba(62,207,142,.2);">Exit target: $25–27</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Key watch callout -->
+    <div class="keywatch" style="margin-bottom:22px;">
+      <div class="keywatch-label">⚑ &nbsp;The one question that decides everything on May 6</div>
+      <div class="keywatch-body">Has management signed — or is close to signing — an HDC lease for any non-CoreWeave site? Everything else on the earnings call (MW billing counts, construction timelines, cash position) is secondary noise. If they don't announce it, push hard on the Q&amp;A: what does the pipeline look like and why hasn't a deal closed after 12+ months of searching.</div>
+    </div>
+
+    <!-- SECTION 2: Conviction levels -->
+    <div style="border-top:1px solid rgba(245,166,35,.12);padding-top:20px;">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;opacity:.8;">02 · CONVICTION LEVELS BY ASSET BUCKET</div>
+
+      <div class="conviction-grid">
+
+        <div class="conviction-card c-green">
+          <div class="conviction-badge" style="color:var(--green);">● High conviction — treat as firm value</div>
+          <div class="conviction-title">CoreWeave Lease</div>
+          <div class="conviction-li"><span class="conviction-dot" style="color:var(--green);">·</span>CoreWeave has faced repeated attacks on their creditworthiness and come out stronger every time. Their finances have improved, not deteriorated, under scrutiny — treat the lease as durable.</div>
+          <div class="conviction-li"><span class="conviction-dot" style="color:var(--green);">·</span>CORZ had real delivery delays. CRWV didn't walk — they defended the partnership even as they themselves were attacked for choosing CORZ. That loyalty under pressure is a strong signal of commitment.</div>
+          <div class="conviction-li"><span class="conviction-dot" style="color:var(--green);">·</span>CRWV has now spent a substantial portion of their capex credits into the buildout. Sunk costs lock them in. Meaningful billing revenue should start materializing as the remaining MW come online over the next two quarters.</div>
+        </div>
+
+        <div class="conviction-card c-amber">
+          <div class="conviction-badge" style="color:var(--amber);">● Medium conviction — valuable but unproven</div>
+          <div class="conviction-title">Unleased Portfolio</div>
+          <div class="conviction-li"><span class="conviction-dot" style="color:var(--amber);">·</span>Market lease rates have improved significantly since the original CoreWeave deal — a new customer announcement at current market terms ($155–185/kW vs. $100/kW) would produce a meaningful re-rating of the stock.</div>
+          <div class="conviction-li"><span class="conviction-dot" style="color:var(--amber);">·</span>But management has been signaling a new customer for over a year. The continued absence of a signed deal is becoming a concern. "Actively evaluating" starts to sound like "can't close" after 12+ months.</div>
+          <div class="conviction-li"><span class="conviction-dot" style="color:var(--amber);">·</span>The 65% deal probability in our base model reflects this skepticism. The value is real and large — it's just not in the bank yet, and that distinction matters for where you hold vs. sell.</div>
+        </div>
+
+        <div class="conviction-card c-grey">
+          <div class="conviction-badge" style="color:var(--faint);">● Low conviction — optionality only</div>
+          <div class="conviction-title">New Site / Footprint Expansion</div>
+          <div class="conviction-li"><span class="conviction-dot" style="color:var(--faint);">·</span>The Pecos 1.5 GW expansion is a genuine positive — scaling an existing site with secured land and contracted utility power is real, concrete optionality and deserves a place in the model.</div>
+          <div class="conviction-li"><span class="conviction-dot" style="color:var(--faint);">·</span>But I don't have high conviction in CORZ's ability to win entirely new power contracts. Every operator in the US is competing desperately for scarce grid capacity — CORZ has no structural advantage in that race vs. better-capitalized competitors.</div>
+          <div class="conviction-li"><span class="conviction-dot" style="color:var(--faint);">·</span>The BTM solution is intriguing as a way to bypass interconnection queues, but the economics of the generation source are unknown. The street will give some credit here — I give it less. The 70% probability / $5.5B NPV in our base case is already generous given the uncertainties.</div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  </div><!-- end page-thesis -->
+
+  <!-- ═══════════════════════════════════════════ PAGE: MODEL ═══ -->
+  <div id="page-model" class="page-view">
+
+  <!-- Scenario bar for model page -->
+  <div class="scenario-bar" style="margin-bottom:14px;">
+    <span class="slabel-sm">// SCENARIO</span>
+    <div style="display:flex;gap:6px;">
+      <button class="sbtn" id="btn-bear-m" onclick="loadScenario('bear')">BEAR</button>
+      <button class="sbtn active" id="btn-base-m" onclick="loadScenario('base')">BASE</button>
+      <button class="sbtn" id="btn-bull-m" onclick="loadScenario('bull')">BULL</button>
+    </div>
+  </div>
+
+  <!-- Metric cards -->
+  <div style="background:var(--bg2);border:1px solid rgba(77,142,245,.15);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;">
+  <div class="metrics-grid" style="margin-bottom:0;">
+    <div class="metric-card">
+      <div class="mc-label">Total equity value</div>
+      <div class="mc-value" id="mc-total">—</div>
+      <div class="mc-sub">diluted, fully adjusted</div>
+    </div>
+    <div class="metric-card">
+      <div class="mc-label">CoreWeave assets</div>
+      <div class="mc-value" id="mc-cw">—</div>
+      <div class="mc-sub">equity residual</div>
+    </div>
+    <div class="metric-card">
+      <div class="mc-label">Unleased + Pecos expansion</div>
+      <div class="mc-value" id="mc-ul">—</div>
+      <div class="mc-sub">Phase 1 deal + Ph.2/BTM optionality</div>
+    </div>
+    <div class="metric-card">
+      <div class="mc-label">Bitcoin treasury</div>
+      <div class="mc-value">$0.22B</div>
+      <div class="mc-sub">2,537 BTC · $87K/coin</div>
+    </div>
+    <div class="metric-card">
+      <div class="mc-label">Net adjustments</div>
+      <div class="mc-value" id="mc-adj">—</div>
+      <div class="mc-sub">cash, SBC, deductions</div>
+    </div>
+  </div>
+  </div><!-- end metric cards wrapper -->
+
+  <!-- Model section -->
+  <div style="background:var(--bg2);border:1px solid rgba(255,255,255,.05);border-radius:var(--radius);padding:18px 20px;">
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showPanel('p-core',this)">CORE ASSETS</button>
+    <button class="tab-btn" onclick="showPanel('p-unleased',this)">UNLEASED PORTFOLIO</button>
+    <button class="tab-btn" onclick="showPanel('p-adj',this)">ANALYST ADJUSTMENTS</button>
+    <button class="tab-btn" onclick="showPanel('p-sotp',this)">FULL SOTP</button>
+  </div>
+
+  <!-- Panel: Core Assets -->
+  <div id="p-core" class="panel visible">
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title">// CoreWeave contracted assets — variable assumptions</div>
+        <div class="srow"><span class="sname">Steady-state NOI multiple</span><input type="range" id="sl-cwmult" min="10" max="22" step="0.5" oninput="recalc()"><span class="sval" id="lbl-cwmult">—</span></div>
+        <div class="srow"><span class="sname">Discount rate</span><input type="range" id="sl-cwdisc" min="7" max="15" step="0.5" oninput="recalc()"><span class="sval" id="lbl-cwdisc">—</span></div>
+        <div class="srow"><span class="sname">Years to terminal</span><input type="range" id="sl-cwyr" min="4" max="8" step="1" oninput="recalc()"><span class="sval" id="lbl-cwyr">—</span></div>
+        <hr class="div">
+        <div class="card-title">// Bitcoin treasury — fixed facts (10-K)</div>
+        <div class="fact-row"><span class="fact-label">Coins held (Dec 31, 2025)</span><span class="fact-val">2,537 BTC</span></div>
+        <div class="fact-row"><span class="fact-label">Fair value per 10-K</span><span class="fact-val">$222.0M ($87.5K/coin)</span></div>
+        <div class="fact-row"><span class="fact-label">Model value used</span><span class="fact-val green">$0.22B</span></div>
+        <div class="note-box">BTC treasury fixed at year-end 2025 10-K fair value. Price has moved since — update manually if needed.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">// CoreWeave contract — key terms (8-K Apr 2026)</div>
+        <div class="fact-row"><span class="fact-label">Rate</span><span class="fact-val">$100/kW/mo ($115 Austin)</span></div>
+        <div class="fact-row"><span class="fact-label">Annual escalator</span><span class="fact-val">3.5% (3.0% Austin)</span></div>
+        <div class="fact-row"><span class="fact-label">Term</span><span class="fact-val">12 yrs + 2×5yr options</span></div>
+        <div class="fact-row"><span class="fact-label">Contracted capacity</span><span class="fact-val">590 MW</span></div>
+        <div class="fact-row"><span class="fact-label">Currently billing (Mar 2026)</span><span class="fact-val green">~185 MW</span></div>
+        <div class="fact-row"><span class="fact-label">Est. gross capex</span><span class="fact-val">$5.5B total / $4.4B spent</span></div>
+        <div class="fact-row"><span class="fact-label">Est. lifetime net revenue</span><span class="fact-val">~$10B</span></div>
+        <div class="fact-row"><span class="fact-label">Steady-state NOI (2031)</span><span class="fact-val">$672M (8-K waterfall)</span></div>
+        <div class="fact-row"><span class="fact-label">Terminal project finance debt</span><span class="fact-val">$2,285M (2031)</span></div>
+        <hr class="div">
+        <div class="card-title">// project finance notes — final pricing (Apr 22, 2026)</div>
+        <div class="fact-row"><span class="fact-label">Face amount</span><span class="fact-val">$3,300M</span></div>
+        <div class="fact-row"><span class="fact-label">Coupon (actual)</span><span class="fact-val green">7.750%</span></div>
+        <div class="fact-row"><span class="fact-label">Coupon (8-K assumed)</span><span class="fact-val" style="color:var(--faint);text-decoration:line-through;">8.250%</span></div>
+        <div class="fact-row"><span class="fact-label">Annual interest saving</span><span class="fact-val green">+$16.5M/yr vs. model</span></div>
+        <div class="fact-row"><span class="fact-label">Cumulative FCF uplift (2026–31)</span><span class="fact-val green">+~$82M vs. 8-K waterfall</span></div>
+        <div class="fact-row"><span class="fact-label">Issue price</span><span class="fact-val">99.250% (OID: −$24.75M cash)</span></div>
+        <div class="fact-row"><span class="fact-label">Effective yield to maturity</span><span class="fact-val">~7.87%</span></div>
+        <div class="fact-row"><span class="fact-label">Levered FCF 2026–31 (revised)</span><span class="fact-val green">~$461M (was $379M)</span></div>
+        <div class="fact-row"><span class="fact-label">2026 DSCR (revised)</span><span class="fact-val green">~1.1x (was 1.0x)</span></div>
+        <div class="fact-row"><span class="fact-label">Closing date</span><span class="fact-val amber">May 6, 2026</span></div>
+        <div class="fact-row"><span class="fact-label">Next earnings (Q1 2026)</span><span class="fact-val amber">May 6, 2026</span></div>
+        <hr class="div">
+        <div class="card-title">// equity residual formula</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--muted);line-height:2;">
+          <div>Gross value = $672M NOI × <span style="color:var(--blue);" id="formula-mult">—</span></div>
+          <div>Less terminal debt = − $2,285M</div>
+          <div>= <span style="color:var(--text);" id="formula-gross">—</span> equity at stabilization</div>
+          <div>Discounted <span style="color:var(--blue);" id="formula-yr">—</span> yrs @ <span style="color:var(--blue);" id="formula-disc">—</span> = <span style="color:var(--green);" id="formula-pv">—</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel: Unleased Portfolio -->
+  <div id="p-unleased" class="panel">
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title">// new HDC deal — unleased 330 MW</div>
+        <div class="srow"><span class="sname">Rate ($/kW/month)</span><input type="range" id="sl-rate" min="80" max="220" step="5" oninput="recalc()"><span class="sval" id="lbl-rate">—</span></div>
+        <div class="srow"><span class="sname">MW contracted</span><input type="range" id="sl-mw" min="0" max="330" step="10" oninput="recalc()"><span class="sval" id="lbl-mw">—</span></div>
+        <div class="srow"><span class="sname">Discount rate (time value)</span><input type="range" id="sl-disc" min="7" max="18" step="0.5" oninput="recalc()"><span class="sval" id="lbl-disc">—</span></div>
+        <div class="srow"><span class="sname">Deal probability (execution)</span><input type="range" id="sl-ulprob" min="0" max="100" step="5" oninput="recalc()"><span class="sval" id="lbl-ulprob">—</span></div>
+        <div class="note-box" style="margin-top:4px;">
+          <strong>Two separate discounts:</strong> The discount rate above adjusts for <em>time value of money</em> — it assumes the deal happens and discounts cash flows back to today. The deal probability below is a separate <em>execution haircut</em> — the chance CORZ actually signs a deal at the assumed rate and scale. Both apply multiplicatively to the unleased portfolio value.
+        </div>
+        <hr class="div">
+        <div class="card-title">// fixed assumptions (all scenarios)</div>
+        <div class="fact-row"><span class="fact-label">Contract term</span><span class="fact-val">12 years</span></div>
+        <div class="fact-row"><span class="fact-label">NOI margin</span><span class="fact-val">70%</span></div>
+        <div class="fact-row"><span class="fact-label">Annual escalator</span><span class="fact-val">3.5%</span></div>
+        <hr class="div">
+        <div class="card-title">// unleased sites — status (Apr 27, 2026)</div>
+        <div class="fact-row"><span class="fact-label">Pecos TX — Phase 1 (300 MW gross)</span><span class="fact-val green">Under construction · early 2027</span></div>
+        <div class="fact-row"><span class="fact-label">Pecos TX — Phase 2 (300 MW utility)</span><span class="fact-val amber">Power secured · dev. stage</span></div>
+        <div class="fact-row"><span class="fact-label">Pecos TX — BTM (~900 MW gross)</span><span class="fact-val amber">Plan developed · land secured</span></div>
+        <div class="fact-row"><span class="fact-label">Paducah KY (150 MW · TVA)</span><span class="fact-val" style="color:var(--muted);">Available · no announced deal</span></div>
+        <div class="fact-row"><span class="fact-label">Grand Forks ND (100 MW · Nodak)</span><span class="fact-val" style="color:var(--muted);">Available · no announced deal</span></div>
+        <div class="fact-row"><span class="fact-label">Auburn AL (50 MW · Alabama Power)</span><span class="fact-val" style="color:var(--muted);">Available · no announced deal</span></div>
+        <hr class="div">
+        <div class="card-title">// new site optionality</div>
+        <div class="srow"><span class="sname">Probability — Pecos Ph.2 + BTM signed</span><input type="range" id="sl-newprob" min="0" max="100" step="5" oninput="recalc()"><span class="sval" id="lbl-newprob">—</span></div>
+        <div class="srow"><span class="sname">NPV if signed ($B)</span><input type="range" id="sl-newnpv" min="0" max="12" step="0.25" oninput="recalc()"><span class="sval" id="lbl-newnpv">—</span></div>
+        <div class="note-box">
+          <strong>Pecos expansion — Apr 27, 2026:</strong> CORZ announced plans to scale Pecos to <strong>1.5 GW gross / ~1.0 GW leasable</strong> (5× the original 300 MW site). Three components:<br><br>
+          <strong>Phase 1 (300 MW gross → ~225 MW leasable):</strong> Already in unleased portfolio above. Footings set, precast walls arriving, vertical construction started. Early 2027 capacity. Site currently available for lease.<br><br>
+          <strong>Phase 2 (incremental 300 MW utility):</strong> New utility contract secured. ~225 MW additional leasable capacity. Included in new site optionality bucket.<br><br>
+          <strong>BTM solution (~900 MW gross → ~550 MW leasable):</strong> Behind-the-meter generation — bypasses ERCOT interconnection queue entirely. Explicitly <em>not</em> in prior pipeline disclosures. 200+ acres of land secured. Included in new site optionality bucket.<br><br>
+          <strong>NPV basis:</strong> ~775 MW incremental leasable (Ph.2 + BTM) at ~$160/kW, 70% NOI, 15yr, 10% discount = ~$7.9B gross. Net of estimated BTM capex (~$2.3–3.1B) = ~$5.0–5.5B base case net NPV.<br><br>
+          <strong>Why probability raised to 70%:</strong> Land secured ✓ · Utility power contracted ✓ · BTM plan developed ✓ · Construction started ✓ · Site actively marketed ✓. Only remaining risk: customer signing. APLD signed 300 MW today; market is actively transacting.<br><br>
+          <strong>Rate note (APLD comp):</strong> APLD Delta Forge 1 deal = $139/kW / 15yr = ~$155/kW on a 12yr-equivalent basis. Revised CORZ base assumption: $160/kW (slight premium for TVA/TNMP power economics vs. APLD's greenfield Texas site).
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">// annual NOI ramp — gross (pre-probability) · market rate vs. $100/kW</div>
+        <div class="chart-wrap" style="height:215px;">
+          <canvas id="rampChart" role="img" aria-label="Annual NOI comparison chart across 12 years">Annual NOI comparison.</canvas>
+        </div>
+        <div class="clegend">
+          <div class="clegend-item"><div class="clegend-swatch" style="background:var(--blue);"></div>Market rate NOI</div>
+          <div class="clegend-item"><div class="clegend-swatch" style="background:var(--blue-dim);border:1px solid var(--blue);"></div>$100/kW NOI</div>
+          <div class="clegend-item"><div class="clegend-swatch" style="background:var(--green);"></div>Incremental NOI</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel: Analyst Adjustments -->
+  <div id="p-adj" class="panel">
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title">// dilution — fixed facts (10-K FY2025)</div>
+        <div class="fact-row"><span class="fact-label">Basic shares (Feb 26, 2026)</span><span class="fact-val">315.3M</span></div>
+        <div class="fact-row"><span class="fact-label">CORZW outstanding (Dec 31, 2025)</span><span class="fact-val red">96.7M warrants @ $6.81</span></div>
+        <div class="fact-row"><span class="fact-label">CORZW net dilution (TSM @ $19.88)</span><span class="fact-val red">+63.6M shares</span></div>
+        <div class="fact-row"><span class="fact-label">CORZZ outstanding (Dec 31, 2025)</span><span class="fact-val">8.1M @ $0.01</span></div>
+        <div class="fact-row"><span class="fact-label">CORZZ incremental dilution</span><span class="fact-val">$0 (already in basic EPS per ASC 260)</span></div>
+        <div class="fact-row"><span class="fact-label">Unvested RSUs (Dec 31, 2025)</span><span class="fact-val red">13.3M</span></div>
+        <div class="fact-row"><span class="fact-label">Unvested PSUs (Dec 31, 2025)</span><span class="fact-val red">5.5M</span></div>
+        <div class="fact-row"><span class="fact-label">Unvested MSUs (Dec 31, 2025)</span><span class="fact-val red">0.8M</span></div>
+        <div class="fact-row"><span class="fact-label" style="font-weight:500;color:var(--text);">Total diluted shares</span><span class="fact-val" style="color:var(--blue);">398.5M</span></div>
+        <hr class="div">
+        <div class="card-title">// value adds — fixed base case (all scenarios)</div>
+        <div class="fact-row"><span class="fact-label">Parent net cash (post-refi est.)</span><span class="fact-val green">+$0.40B</span></div>
+        <div class="fact-row"><span class="fact-label">CW receivable (near-cash, Dec 2025)</span><span class="fact-val green">+$0.25B</span></div>
+        <div class="fact-row"><span class="fact-label">NOL tax shield (prob.-wtd. PV)</span><span class="fact-val green">+$0.075B</span></div>
+        <div class="note-box">
+          <strong>NOL note:</strong> Federal NOLs of $727.8M and state NOLs of $184.2M per 10-K. Full $275.5M valuation allowance recorded and §382 ownership-change limitation applies from Jan 2024 bankruptcy emergence. However §382 does not fully eliminate usage — estimated annual limitation of ~$95–115M, implying ~$20–24M of annual cash tax savings at 21% federal rate. PV of ~$130–150M haircut heavily for uncertainty to <strong>$75M</strong> base case.
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">// deductions — fixed base case (all scenarios)</div>
+        <div class="fact-row"><span class="fact-label">SBC FY2025 (10-K)</span><span class="fact-val">$98.2M/yr</span></div>
+        <div class="fact-row"><span class="fact-label">SBC mult — bear / base / bull</span><span class="fact-val red">8x / 12x / 12x</span></div>
+        <div class="fact-row"><span class="fact-label">SBC drag — bear / base / bull</span><span class="fact-val red">$0.79B / $1.18B / $1.18B</span></div>
+        <div class="fact-row"><span class="fact-label">HoldCo discount — bear / base / bull</span><span class="fact-val red">$0.30B / $0.50B / $0.40B</span></div>
+        <div class="fact-row"><span class="fact-label">Completion guarantee risk</span><span class="fact-val red">−$0.125B</span></div>
+        <div class="fact-row"><span class="fact-label">Denton capex obligation (8-K)</span><span class="fact-val red">−$0.104B</span></div>
+        <div class="fact-row"><span class="fact-label">Corp. overhead / HoldCo discount</span><span class="fact-val red">−$0.50B</span></div>
+        <hr class="div">
+        <div class="card-title">// net adjustment summary</div>
+        <div class="bwrap"><div class="blbl"><span>Cash + receivable + NOL</span><span style="color:var(--green);">+$0.72B</span></div><div class="btrack"><div class="bfill" style="width:20%;background:var(--green);opacity:.8;"></div></div></div>
+        <div class="bwrap"><div class="blbl"><span>SBC drag (@12x)</span><span style="color:var(--red);">−$1.18B</span></div><div class="btrack"><div class="bfill" style="width:33%;background:var(--red);opacity:.8;"></div></div></div>
+        <div class="bwrap"><div class="blbl"><span>Completion guarantee (revised)</span><span style="color:var(--red);">−$0.125B</span></div><div class="btrack"><div class="bfill" style="width:3.5%;background:var(--red);opacity:.8;"></div></div></div>
+        <div class="bwrap"><div class="blbl"><span>Denton capex</span><span style="color:var(--red);">−$0.10B</span></div><div class="btrack"><div class="bfill" style="width:3%;background:var(--red);opacity:.8;"></div></div></div>
+        <div class="bwrap"><div class="blbl"><span>HoldCo discount</span><span style="color:var(--red);">−$0.50B</span></div><div class="btrack"><div class="bfill" style="width:14%;background:var(--red);opacity:.8;"></div></div></div>
+        <hr class="div">
+        <div class="note-box">
+          <strong>SBC note:</strong> SBC multiple is now scenario-variable. Bear = 8x: in a bear scenario where the stock trades at a lower multiple, the capitalized economic cost of SBC dilution is proportionally lower — 8x is internally consistent with a ~$17 stock price. Base/Bull = 12x: at higher stock multiples, SBC dilution is more costly. HoldCo discount also varies: bear = $300M (less expansion activity, leaner corporate overhead); base = $500M; bull = $400M.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel: Full SOTP -->
+  <div id="p-sotp" class="panel">
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title">// full value build</div>
+        <table class="sotp-table">
+          <thead><tr><th>Item</th><th>Source</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr class="pos"><td>CoreWeave equity residual</td><td style="color:var(--faint);font-size:11px;">8-K Apr 2026</td><td id="t-cw">—</td></tr>
+            <tr class="pos"><td>Unleased portfolio (new deal, prob.-wtd.)</td><td style="color:var(--faint);font-size:11px;">scenario</td><td id="t-ul">—</td></tr>
+            <tr><td style="color:var(--faint);font-size:11px;padding-left:14px;">↳ gross PV if signed</td><td></td><td id="t-ul-gross" style="color:var(--faint);font-family:var(--mono);font-size:11px;text-align:right;">—</td></tr>
+            <tr class="pos"><td>Pecos expansion optionality (Ph.2 + BTM, prob.-wtd.)</td><td style="color:var(--faint);font-size:11px;">Apr 27, 2026 PR</td><td id="t-opt">—</td></tr>
+            <tr class="pos"><td>Bitcoin treasury</td><td style="color:var(--faint);font-size:11px;">10-K FY2025</td><td>$0.22B</td></tr>
+            <tr class="pos"><td>Mining wind-down</td><td style="color:var(--faint);font-size:11px;">est.</td><td>$0.08B</td></tr>
+            <tr class="pos"><td>Parent net cash (post-refi)</td><td style="color:var(--faint);font-size:11px;">est.</td><td>$0.40B</td></tr>
+            <tr class="pos"><td>CoreWeave receivable</td><td style="color:var(--faint);font-size:11px;">10-K FY2025</td><td>$0.25B</td></tr>
+            <tr class="pos"><td>NOL tax shield (§382 limited, prob.-wtd.)</td><td style="color:var(--faint);font-size:11px;">10-K / §382 est.</td><td style="color:var(--amber);">$0.08B</td></tr>
+            <tr class="neg"><td>SBC capitalized drag (<span id="t-sbcdetail">$98M × 12x</span>)</td><td style="color:var(--faint);font-size:11px;">10-K / scenario</td><td id="t-sbc">—</td></tr>
+            <tr class="neg"><td>Completion guarantee risk (post-pricing)</td><td style="color:var(--faint);font-size:11px;">Apr 22 pricing</td><td>($0.13B)</td></tr>
+            <tr class="neg"><td>Denton capex obligation</td><td style="color:var(--faint);font-size:11px;">8-K Apr 2026</td><td>($0.10B)</td></tr>
+            <tr class="neg"><td>Corp. overhead / HoldCo discount</td><td style="color:var(--faint);font-size:11px;">scenario</td><td id="t-corp">—</td></tr>
+            <tr class="total"><td colspan="2">Total equity value</td><td id="t-total">—</td></tr>
+            <tr class="share"><td colspan="2" style="color:var(--muted);font-size:11px;">Diluted shares (398.5M · fixed from 10-K)</td><td style="color:var(--muted);font-family:var(--mono);">398.5M</td></tr>
+            <tr class="implied"><td colspan="2">Implied share price</td><td id="t-share">—</td></tr>
+            <tr class="market"><td colspan="2">Current market price</td><td id="t-mktprice">$19.88</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">// value bridge waterfall ($B)</div>
+        <div class="chart-wrap" style="height:340px;">
+          <canvas id="waterfallChart" role="img" aria-label="Waterfall chart showing value build from each SOTP component">SOTP waterfall.</canvas>
+        </div>
+      </div>
+    </div>
+  </div><!-- end panel: full SOTP -->
+
+  </div><!-- end model section wrapper -->
+
+  </div><!-- end page-model -->
+
+</main>
+
+<footer>
+  CORZ Valuation Model &nbsp;·&nbsp;
+  Sources: Form 8-K (Apr 21) · Pricing PR (Apr 22) · Pecos Expansion PR (Apr 27) · Form 10-K (FY2025) &nbsp;·&nbsp;
+  Notes: 7.750% · 99.250% · closing May 6, 2026 &nbsp;·&nbsp;
+  Pecos: 1.5 GW gross / ~1.0 GW leasable — Ph.2 utility secured + BTM plan developed &nbsp;·&nbsp;
+  New site NPV basis: ~775 MW @ $160/kW current market rate (APLD comp: $139/kW / 15yr = ~$155/kW 12yr equiv.) &nbsp;·&nbsp;
+  Not financial advice &nbsp;·&nbsp; Updated Apr 27, 2026
+</footer>
+
+<script>
+// ── Fixed constants from filings ──────────────────────────────────────────
+let CURRENT_PRICE  = 19.88;
+const W52_LOW        = 6.36;
+const W52_HIGH       = 23.63;
+const DILUTED_SHARES = 398.5;   // 315.3 basic + 63.6 CORZW (TSM) + 19.6 RSU/PSU/MSU
+const CW_NOI_STEADY  = 672;     // $M — from 8-K cash flow waterfall
+const CW_DEBT_TERM   = 2285;    // $M — terminal project finance debt per 8-K
+const BTC_VALUE      = 0.222;   // $B — 2,537 BTC × $87.5K per 10-K FY2025
+const MINE_VALUE     = 0.075;   // $B — estimated mining wind-down
+const CASH_VALUE     = 0.40;    // $B — estimated parent net cash post-refi
+const RECV_VALUE     = 0.25;    // $B — CoreWeave receivable (haircut from $337M)
+const NOL_VALUE      = 0.075;   // $B — §382 limited but non-zero: ~$100M annual limit × 21% × PV, heavily haircut
+const SBC_DRAG       = -1.178;  // $B base case — $98.2M/yr × 12x (bear uses 8x, see scenarios)
+const SBC_ANN        = 0.0982;  // $B annual SBC from 10-K FY2025
+const COMPG_DRAG     = -0.125;  // $B — completion guarantee risk (reduced: financing execution risk eliminated at May 6 closing)
+const DENTON_DRAG    = -0.104;  // $B — Denton capex obligation (fixed per 8-K)
+const CORP_DRAG      = -0.50;   // $B — corp overhead / HoldCo discount
+const FIXED_DEDUCTS  = SBC_DRAG + COMPG_DRAG + DENTON_DRAG + CORP_DRAG;  // -1.907
+const FIXED_ADDS     = BTC_VALUE + MINE_VALUE + CASH_VALUE + RECV_VALUE + NOL_VALUE; // 1.022
+const TERM           = 12;      // years — fixed per instructions
+const NOI_MARGIN     = 0.70;    // 70% — fixed per instructions
+const ESCALATOR      = 0.035;
+const BASE_RATE      = 100;
+
+// ── Scenarios (only variable assumptions) ─────────────────────────────────
+const scenarios = {
+  bear: { cwmult:16.5, cwdisc:10, cwyr:6, rate:130, mw:150, disc:10, ulprob:50, newprob:35, newnpv:4.5, sbcmult:8,  holdco:0.30 },
+  base: { cwmult:16.5, cwdisc:10, cwyr:6, rate:160, mw:250, disc:10, ulprob:65, newprob:70, newnpv:5.5, sbcmult:12, holdco:0.50 },
+  bull: { cwmult:18,   cwdisc:8,  cwyr:5, rate:185, mw:330, disc:8,  ulprob:85, newprob:85, newnpv:8.0, sbcmult:12, holdco:0.40 }
+};
+
+let rampChart = null, waterfallChart = null;
+// Scenario-variable structural assumptions (updated by loadScenario)
+let CURRENT_SBC_MULT = 12;   // capitalization multiple on $98.2M annual SBC
+let CURRENT_HOLDCO   = 0.50; // $B HoldCo overhead / structural discount
+const $ = id => document.getElementById(id);
+
+function showPage(page) {
+  document.querySelectorAll('.page-view').forEach(p => p.classList.remove('visible'));
+  document.querySelectorAll('.page-nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('visible');
+  document.getElementById('nav-' + page).classList.add('active');
+}
+
+function loadScenario(s) {
+  const p = scenarios[s];
+  Object.keys(p).forEach(k => { const el = $('sl-'+k); if(el) el.value = p[k]; });
+  // Sync both thesis-page and model-page scenario buttons
+  ['bear','base','bull'].forEach(x => {
+    const b1 = $('btn-'+x), b2 = $('btn-'+x+'-m');
+    if(b1) b1.classList.toggle('active', x === s);
+    if(b2) b2.classList.toggle('active', x === s);
+  });
+  // Set scenario-variable structural assumptions
+  CURRENT_SBC_MULT = p.sbcmult;
+  CURRENT_HOLDCO   = p.holdco;
+  recalc();
+}
+
+function pv(cf, r, y) {
+  let v = 0;
+  for (let t = 1; t <= y; t++) v += cf / Math.pow(1 + r, t);
+  return v;
+}
+
+function showPanel(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('visible'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  $(id).classList.add('visible');
+  btn.classList.add('active');
+  recalc();
+}
+
+function recalc() {
+  const cwmult  = +$('sl-cwmult').value;
+  const cwdisc  = +$('sl-cwdisc').value / 100;
+  const cwyr    = +$('sl-cwyr').value;
+  const rate    = +$('sl-rate').value;
+  const mw      = +$('sl-mw').value;
+  const disc    = +$('sl-disc').value / 100;
+  const ulprob  = +$('sl-ulprob').value / 100;
+  const newprob = +$('sl-newprob').value / 100;
+  const newnpv  = +$('sl-newnpv').value;
+
+  // Slider labels
+  $('lbl-cwmult').textContent  = cwmult.toFixed(1) + 'x';
+  $('lbl-cwdisc').textContent  = (cwdisc*100).toFixed(1) + '%';
+  $('lbl-cwyr').textContent    = cwyr + ' yrs';
+  $('lbl-rate').textContent    = '$' + rate + '/kW';
+  $('lbl-mw').textContent      = mw + ' MW';
+  $('lbl-disc').textContent    = (disc*100).toFixed(1) + '%';
+  $('lbl-ulprob').textContent  = Math.round(ulprob*100) + '%';
+  $('lbl-newprob').textContent = Math.round(newprob*100) + '%';
+  $('lbl-newnpv').textContent  = '$' + newnpv.toFixed(2) + 'B';
+
+  // CoreWeave equity residual
+  const cwGross = (CW_NOI_STEADY * cwmult - CW_DEBT_TERM) / 1000;
+  const vCW = Math.max(0, cwGross / Math.pow(1 + cwdisc, cwyr));
+
+  // Unleased portfolio — probability-weighted
+  const annNOI  = (rate * mw * 1000 * 12) / 1e9 * NOI_MARGIN;
+  const vUL_raw = pv(annNOI, disc, TERM);
+  const vUL     = vUL_raw * ulprob;
+
+  // New site optionality
+  const vOpt = newprob * newnpv;
+
+  // Dynamic structural items (scenario-variable)
+  const scenSBC_DRAG  = -(SBC_ANN * CURRENT_SBC_MULT);
+  const scenCORP_DRAG = -CURRENT_HOLDCO;
+  const scenDeducts   = scenSBC_DRAG + COMPG_DRAG + DENTON_DRAG + scenCORP_DRAG;
+  const scenNetFixed  = FIXED_ADDS + scenDeducts;
+
+  // Totals
+  const vTotal = vCW + vUL + vOpt + scenNetFixed;
+  const perShare = (vTotal * 1000) / DILUTED_SHARES;
+  const upsidePct = (perShare - CURRENT_PRICE) / CURRENT_PRICE * 100;
+
+  // Uplift vs CW rate baseline
+  // Uplift vs CW rate baseline — use raw (pre-probability) PV for honest rate comparison
+  const cwBaseNOI = pv((BASE_RATE * mw * 1000 * 12) / 1e9 * 0.55, disc, TERM);
+  const uplift = vUL_raw - cwBaseNOI;
+
+  // ── Hero ──
+  $('implied-price').textContent = '$' + Math.round(perShare);
+  $('implied-cap').textContent   = '$' + vTotal.toFixed(2) + 'B market cap (diluted)';
+  const pill = $('upside-pill');
+  pill.textContent = (upsidePct >= 0 ? '+' : '') + Math.round(upsidePct) + '% vs. $' + CURRENT_PRICE.toFixed(2);
+  pill.className = 'upside-pill ' + (upsidePct >= 0 ? 'pill-up' : 'pill-dn');
+
+  const span = W52_HIGH - W52_LOW;
+  $('gm-current').style.left = Math.min(100, Math.max(0, (CURRENT_PRICE - W52_LOW) / span * 100)).toFixed(1) + '%';
+  $('gm-implied').style.left = Math.min(115, Math.max(-5, (perShare - W52_LOW) / span * 100)).toFixed(1) + '%';
+  $('g-implied-lbl').textContent = '$' + Math.round(perShare) + ' implied';
+  $('stat-uplift').textContent = (uplift >= 0 ? '+' : '') + '$' + uplift.toFixed(2) + 'B';
+  $('stat-ulpct').textContent  = Math.round(((vUL + vOpt) / vTotal) * 100) + '%';
+
+  // ── Metric cards ──
+  $('mc-total').textContent = '$' + vTotal.toFixed(2) + 'B';
+  $('mc-cw').textContent    = '$' + vCW.toFixed(2) + 'B';
+  $('mc-ul').textContent    = '$' + (vUL + vOpt).toFixed(2) + 'B';
+  const netAdj = scenNetFixed;
+  $('mc-adj').textContent   = (netAdj >= 0 ? '+' : '') + '$' + netAdj.toFixed(2) + 'B';
+
+  // ── Core panel formula ──
+  const gross = cwGross.toFixed(2);
+  $('formula-mult').textContent = cwmult.toFixed(1) + 'x = $' + (CW_NOI_STEADY * cwmult / 1000).toFixed(2) + 'B';
+  $('formula-gross').textContent = '$' + Math.max(0, cwGross).toFixed(2) + 'B';
+  $('formula-yr').textContent    = cwyr + ' yrs';
+  $('formula-disc').textContent  = (cwdisc*100).toFixed(1) + '%';
+  $('formula-pv').textContent    = '$' + vCW.toFixed(2) + 'B';
+
+  // ── SOTP table ──
+  $('t-cw').textContent       = '$' + vCW.toFixed(2)    + 'B';
+  $('t-ul').textContent       = '$' + vUL.toFixed(2)    + 'B';
+  $('t-ul-gross').textContent = '($' + vUL_raw.toFixed(2) + 'B × ' + Math.round(ulprob*100) + '%)';
+  $('t-opt').textContent      = '$' + vOpt.toFixed(2)   + 'B';
+  $('t-sbcdetail').textContent = '$98M × ' + CURRENT_SBC_MULT + 'x';
+  $('t-sbc').textContent      = '($' + Math.abs(scenSBC_DRAG).toFixed(2) + 'B)';
+  $('t-corp').textContent     = '($' + CURRENT_HOLDCO.toFixed(2) + 'B)';
+  $('t-total').textContent    = '$' + vTotal.toFixed(2) + 'B';
+  $('t-share').textContent    = '$' + Math.round(perShare);
+
+  // ── Ramp chart ──
+  const yrs = Array.from({length:12}, (_, i) => 'Yr '+(i+1));
+  const mktR = [], cwR = [], incrR = [];
+  for (let t = 1; t <= 12; t++) {
+    const mr = rate * Math.pow(1 + ESCALATOR, t - 1);
+    const cr = BASE_RATE * Math.pow(1 + ESCALATOR, t - 1);
+    const ma = Math.round((mr * mw * 1000 * 12) / 1e6 * NOI_MARGIN);
+    const ca = Math.round((cr * mw * 1000 * 12) / 1e6 * 0.55);
+    mktR.push(ma); cwR.push(ca); incrR.push(ma - ca);
+  }
+  if (rampChart) rampChart.destroy();
+  rampChart = new Chart($('rampChart'), {
+    type: 'bar',
+    data: { labels: yrs, datasets: [
+      { label: 'Market rate NOI', data: mktR,  backgroundColor: '#4d8ef5', borderRadius: 3 },
+      { label: '$100/kW NOI',     data: cwR,   backgroundColor: '#1f3a6e', borderRadius: 3 },
+      { label: 'Incremental NOI', data: incrR, backgroundColor: '#3ecf8e', borderRadius: 3 }
+    ]},
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>c.dataset.label+': $'+c.parsed.y+'M'}} },
+      scales:{
+        x:{ ticks:{autoSkip:false,font:{size:10},color:'#7a8194'}, grid:{display:false} },
+        y:{ ticks:{callback:v=>'$'+v+'M',font:{size:10},color:'#7a8194'}, grid:{color:'rgba(255,255,255,.04)'} }
+      }
+    }
+  });
+
+  // ── Waterfall chart ──
+  const wfLabels = ['CW assets','Unleased','Optionality','BTC','Mining','Cash','Recv.','SBC','Comp.G.','Denton','HoldCo'];
+  const wfVals   = [vCW, vUL, vOpt, BTC_VALUE, MINE_VALUE, CASH_VALUE, RECV_VALUE, scenSBC_DRAG, COMPG_DRAG, DENTON_DRAG, scenCORP_DRAG];
+  const wfColors = wfVals.map(v => v >= 0 ? '#4d8ef5' : '#f25f5c');
+  const wfBase = []; let running = 0;
+  wfVals.forEach(v => { wfBase.push(v >= 0 ? running : running + v); running += v; });
+  if (waterfallChart) waterfallChart.destroy();
+  waterfallChart = new Chart($('waterfallChart'), {
+    type: 'bar',
+    data: { labels: wfLabels, datasets: [
+      { data: wfBase, backgroundColor: 'transparent', borderColor: 'transparent' },
+      { data: wfVals.map(Math.abs), backgroundColor: wfColors, borderRadius: 3 }
+    ]},
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>{
+        if(c.datasetIndex===0) return null;
+        const v=wfVals[c.dataIndex];
+        return (v>=0?'+':'')+v.toFixed(2)+'B';
+      }}}},
+      scales:{
+        x:{ stacked:true, ticks:{font:{size:10},maxRotation:40,color:'#7a8194'}, grid:{display:false} },
+        y:{ stacked:true, ticks:{callback:v=>'$'+v.toFixed(1)+'B',font:{size:10},color:'#7a8194'}, grid:{color:'rgba(255,255,255,.04)'} }
+      }
+    }
+  });
+}
+
+// ── Live price fetch ──────────────────────────────────────────────────────
+const SHARES_BASIC = 315.3;
+
+function updatePriceDisplay(price, source, isLive) {
+  CURRENT_PRICE = price;
+
+  // Header
+  $('hdr-price').textContent = '$' + price.toFixed(2);
+  $('hdr-price-label').textContent = isLive ? 'Live' : 'Last price';
+  $('hdr-price').style.color = isLive ? 'var(--green)' : 'var(--amber)';
+
+  // Hero
+  $('hero-price').textContent = '$' + price.toFixed(2);
+  const mktCap = (price * SHARES_BASIC / 1000).toFixed(2);
+  $('hero-mktcap').textContent = '$' + mktCap + 'B market cap';
+
+  // SOTP table
+  $('t-mktprice').textContent = '$' + price.toFixed(2);
+
+  // Status badge
+  $('price-status').textContent = source;
+  $('price-status').style.color = isLive ? 'var(--green)' : 'var(--faint)';
+
+  // Dilution TSM note (label)
+  const tsmEl = document.querySelector('.fact-label[data-tsm]');
+  if (tsmEl) tsmEl.textContent = 'CORZW net dilution (TSM @ $' + price.toFixed(2) + ')';
+
+  recalc();
+}
+
+function overridePrice(val) {
+  const p = parseFloat(val);
+  if (!isNaN(p) && p > 0) updatePriceDisplay(p, 'manual override', false);
+}
+
+async function fetchPrice() {
+  $('price-status').textContent = 'fetching...';
+  $('price-status').style.color = 'var(--muted)';
+  $('refresh-btn').disabled = true;
+
+  // Yahoo Finance via allorigins CORS proxy — most reliable for static hosting
+  const yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/CORZ?interval=1d&range=1d&includePrePost=true';
+  const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(yahooUrl);
+
+  try {
+    const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error('proxy error ' + res.status);
+    const data = await res.json();
+    const meta = data?.chart?.result?.[0]?.meta;
+    if (!meta) throw new Error('no meta');
+
+    // Use regularMarketPrice; fall back to previousClose
+    const price = meta.regularMarketPrice || meta.chartPreviousClose;
+    if (!price) throw new Error('no price');
+
+    const isOpen = meta.marketState === 'REGULAR';
+    const exchTz = meta.exchangeTimezoneName || 'America/New_York';
+    const ts = new Date(meta.regularMarketTime * 1000);
+    const timeStr = ts.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', timeZone: exchTz, hour12:true });
+    const dateStr = ts.toLocaleDateString('en-US', { month:'short', day:'numeric', timeZone: exchTz });
+    const stateLabel = isOpen ? 'live' : (meta.marketState === 'PRE' ? 'pre-mkt' : 'close');
+    const srcLabel = stateLabel + ' · ' + dateStr + ' ' + timeStr + ' ET';
+
+    updatePriceDisplay(parseFloat(price.toFixed(2)), srcLabel, isOpen);
+  } catch(err) {
+    $('price-status').textContent = 'live fetch unavailable — enter price manually';
+    $('price-status').style.color = 'var(--faint)';
+  } finally {
+    $('refresh-btn').disabled = false;
+  }
+}
+
+// Auto-fetch on load; retry once after 3s if first attempt fails silently
+fetchPrice();
+
+loadScenario('base');
+</script>
+</body>
+</html>
